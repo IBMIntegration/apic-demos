@@ -1,0 +1,98 @@
+paths:
+  /countries:
+    get:
+      tags:
+        - country
+      summary: Find all instances of the model matched by filter from the data source.
+      operationId: country.find
+      parameters:
+        - name: filter
+          in: query
+          description: 'Filter defining fields, where, include, order, offset, and limit - must be a JSON-encoded string ({"something":"value"})'
+          required: false
+          type: string
+          format: JSON
+      responses:
+        '200':
+          description: Request was successful
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/country'
+      deprecated: false
+definitions:
+  country:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      code:
+        type: string
+    required:
+      - id
+    additionalProperties: false
+  x-any:
+    properties: {}
+  city:
+    properties:
+      id:
+        $ref: '#/definitions/ObjectID'
+    additionalProperties: false
+  state:
+    properties:
+      id:
+        $ref: '#/definitions/ObjectID'
+    additionalProperties: false
+  ObjectID:
+    type: string
+    pattern: "^[a-fA-F\\d]{24}$"
+basePath: /api
+swagger: '2.0'
+info:
+  x-ibm-name: funwithgeography
+  version: 1.0.0
+  title: FunWithGeography
+schemes:
+  - https
+host: $(catalog.host)
+consumes:
+  - application/json
+produces:
+  - application/json
+securityDefinitions:
+  clientIdSecret:
+    type: apiKey
+    description: ''
+    in: header
+    name: X-IBM-Client-Secret
+  clientIdHeader:
+    type: apiKey
+    in: header
+    name: X-IBM-Client-Id
+security:
+  - clientIdHeader: []
+    clientIdSecret: []
+x-ibm-configuration:
+  testable: true
+  enforced: true
+  cors:
+    enabled: true
+  catalogs:
+    apic-dev:
+      properties:
+        runtime-url: $(TARGET_URL)
+    sb:
+      properties:
+        runtime-url: 'http://localhost:4001'
+  assembly:
+    execute:
+      - invoke:
+          target-url: $(api.properties.hostedservice)$(request.path)
+    catch: []
+  gateway: datapower-gateway
+  properties:
+    hostedservice:
+      value: 'https://funwithgeography.mybluemix.net'
+      description: ''
+      encoded: false
