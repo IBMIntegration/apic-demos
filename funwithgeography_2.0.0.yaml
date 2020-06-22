@@ -1,0 +1,114 @@
+swagger: '2.0'
+info:
+  title: FunWithGeography
+  x-ibm-name: funwithgeography
+  version: 2.0.0
+host: $(catalog.host)
+schemes:
+  - https
+basePath: /api
+produces:
+  - application/json
+consumes:
+  - application/json
+security:
+  - clientIdHeader: []
+    clientIdSecret: []
+securityDefinitions:
+  clientIdSecret:
+    type: apiKey
+    description: ''
+    in: header
+    name: X-IBM-Client-Secret
+  clientIdHeader:
+    type: apiKey
+    in: header
+    name: X-IBM-Client-Id
+x-ibm-configuration:
+  testable: true
+  enforced: true
+  cors:
+    enabled: true
+  assembly:
+    execute:
+      - invoke:
+          version: 2.0.0
+          title: invoke
+          header-control:
+            type: blacklist
+            values: []
+          parameter-control:
+            type: whitelist
+            values: []
+          timeout: 60
+          verb: keep
+          cache-response: protocol
+          cache-ttl: 900
+          stop-on-error: []
+          target-url: $(api.properties.hostedservice)
+    catch: []
+  gateway: datapower-api-gateway
+  properties:
+    hostedservice:
+      value: 'https://funwithgeography.mybluemix.net/api/countries'
+      description: ''
+      encoded: false
+  type: rest
+  phase: realized
+  activity-log:
+    enabled: true
+    error-content: header
+    success-content: activity
+  application-authentication:
+    certificate: false
+definitions:
+  country:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      code:
+        type: string
+    required:
+      - id
+    additionalProperties: false
+  x-any:
+    properties: {}
+  city:
+    properties:
+      id:
+        $ref: '#/definitions/ObjectID'
+    additionalProperties: false
+  state:
+    properties:
+      id:
+        $ref: '#/definitions/ObjectID'
+    additionalProperties: false
+  ObjectID:
+    type: string
+    pattern: '^[a-fA-F\d]{24}$'
+paths:
+  /countries:
+    get:
+      tags:
+        - country
+      summary: Find all instances of the model matched by filter from the data source.
+      operationId: country.find
+      parameters:
+        - name: filter
+          in: query
+          description: >-
+            Filter defining fields, where, include, order, offset, and limit -
+            must be a JSON-encoded string ({"something":"value"})
+          required: false
+          type: string
+          format: JSON
+      responses:
+        '200':
+          description: Request was successful
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/country'
+      deprecated: false

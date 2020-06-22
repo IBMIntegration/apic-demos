@@ -1,0 +1,282 @@
+swagger: '2.0'
+info:
+  x-ibm-name: shipping
+  title: shipping
+  version: 1.0.0
+  license:
+    name: MIT
+schemes:
+  - https
+basePath: /shipping
+consumes:
+  - application/json
+produces:
+  - application/json
+securityDefinitions:
+  Client ID:
+    type: apiKey
+    in: header
+    name: X-IBM-Client-Id
+    description: Client ID of your registered application.
+  Client Secret:
+    in: header
+    name: X-IBM-Client-Secret
+    type: apiKey
+    description: Client Secret of your registered application.
+security:
+  - Client ID: []
+    Client Secret: []
+x-ibm-configuration:
+  testable: true
+  enforced: true
+  cors:
+    enabled: true
+  gateway: datapower-api-gateway
+  catalogs:
+    apic-dev:
+      properties:
+        runtime-url: $(TARGET_URL)
+    Sandbox:
+      properties:
+        oauth_token_url: 'https://dpgwy.apic.demo.com/demo/sb/oauth2/token'
+  assembly:
+    execute:
+      - activity-log:
+          title: activity-log
+          content: activity
+          error-content: payload
+      - operation-switch:
+          title: operation-switch
+          case:
+            - operations:
+                - shipping.calc
+              execute:
+                - invoke:
+                    title: invoke_fedex
+                    timeout: 60
+                    verb: GET
+                    cache-response: protocol
+                    cache-ttl: 900
+                    target-url: >-
+                      https://apim-services.mybluemix.net/shipping/calculate?company=fedex&from_zip=90210&to_zip={zip}
+                    output: invoke_fedex_rsp
+                - invoke:
+                    title: invoke
+                    timeout: 60
+                    verb: GET
+                    cache-response: protocol
+                    cache-ttl: 900
+                    stop-on-error:
+                      - null
+                    version: 1.0.0
+                - invoke:
+                    title: invoke_ups
+                    timeout: 60
+                    verb: GET
+                    cache-response: protocol
+                    cache-ttl: 900
+                    description: ''
+                    target-url: >-
+                      https://apim-services.mybluemix.net/shipping/calculate?company=ups&from_zip=90210&to_zip={zip}
+                    output: invoke_ups_rsp
+                - map:
+                    title: map_rsp
+                    inputs:
+                      fedex_rates:
+                        schema:
+                          $schema: 'http://json-schema.org/draft-04/schema#'
+                          id: 'http://jsonschema.net'
+                          type: object
+                          properties:
+                            company:
+                              id: 'http://jsonschema.net/company'
+                              type: string
+                              name: company
+                            rates:
+                              id: 'http://jsonschema.net/rates'
+                              type: object
+                              properties:
+                                next_day:
+                                  id: 'http://jsonschema.net/rates/next_day'
+                                  type: string
+                                  name: next_day
+                                two_day:
+                                  id: 'http://jsonschema.net/rates/two_day'
+                                  type: string
+                                  name: two_day
+                                ground:
+                                  id: 'http://jsonschema.net/rates/ground'
+                                  type: string
+                                  name: ground
+                              name: rates
+                          required:
+                            - company
+                            - rates
+                          title: fedex_rates
+                        variable: invoke_fedex_rsp.body
+                        content: application/json
+                      ups_rates:
+                        schema:
+                          $schema: 'http://json-schema.org/draft-04/schema#'
+                          id: 'http://jsonschema.net'
+                          type: object
+                          properties:
+                            company:
+                              id: 'http://jsonschema.net/company'
+                              type: string
+                              name: company
+                            rates:
+                              id: 'http://jsonschema.net/rates'
+                              type: object
+                              properties:
+                                next_day:
+                                  id: 'http://jsonschema.net/rates/next_day'
+                                  type: string
+                                  name: next_day
+                                two_day:
+                                  id: 'http://jsonschema.net/rates/two_day'
+                                  type: string
+                                  name: two_day
+                                ground:
+                                  id: 'http://jsonschema.net/rates/ground'
+                                  type: string
+                                  name: ground
+                              name: rates
+                          required:
+                            - company
+                            - rates
+                          title: ups_rates
+                        variable: invoke_ups_rsp.body
+                        content: application/json
+                    outputs:
+                      output:
+                        schema:
+                          $ref: '#/definitions/shipping'
+                        variable: message.body
+                        content: application/json
+                    actions:
+                      - set: output.fedex.next_day
+                        from: fedex_rates.rates.next_day
+                      - set: output.fedex.two_day
+                        from: fedex_rates.rates.two_day
+                      - set: output.fedex.ground
+                        from: fedex_rates.rates.ground
+                      - set: output.ups.next_day
+                        from: ups_rates.rates.next_day
+                      - set: output.ups.two_day
+                        from: ups_rates.rates.two_day
+                      - set: output.ups.ground
+                        from: ups_rates.rates.ground
+                    description: Combine shipping rates from FedEx and UPS
+            - operations:
+                - example.assembly
+              execute:
+                - if:
+                    title: if
+                    condition: $(request.headers.content-type) == "application/json"
+                    execute:
+                      - validate:
+                          title: validate
+                          definition: '#/definitions/data_in'
+                      - proxy:
+                          title: proxy
+                          timeout: 60
+                          verb: keep
+                          cache-response: protocol
+                          cache-ttl: 900
+                          target-url: 'http://some.url/some/where'
+                - if:
+                    title: if
+                    condition: $(request.headers.content-type) == "application/xml"
+                    execute:
+                      - xml-to-json:
+                          title: xml-to-json
+                      - gatewayscript:
+                          title: gatewayscript
+                          source: console.log("hi there")
+                      - validate:
+                          title: validate
+                          definition: '#/definitions/data_in'
+                      - proxy:
+                          title: proxy
+                          timeout: 60
+                          verb: keep
+                          cache-response: protocol
+                          cache-ttl: 900
+                          target-url: 'http://some.url/some/where'
+                      - json-to-xml:
+                          title: json-to-xml
+                          root-element-name: json
+                          always-output-root-element: false
+    catch:
+      - errors:
+          - ConnectionError
+        execute: []
+  properties:
+    shipping_svc_url:
+      value: 'https://apim-services.mybluemix.net/shipping/calculate'
+      description: Server location for the LoopBack application
+      encoded: false
+  type: rest
+  phase: realized
+paths:
+  /calculate:
+    get:
+      responses:
+        '200':
+          description: 200 OK
+          schema:
+            $ref: '#/definitions/shipping'
+      summary: Calculate shipping costs to a destination zip code
+      operationId: shipping.calc
+      parameters:
+        - name: zip
+          type: string
+          required: true
+          in: query
+          description: Destination zip code.
+  /example/assembly:
+    post:
+      responses:
+        '200':
+          description: 200 OK
+      operationId: example.assembly
+      parameters:
+        - name: data
+          required: true
+          in: body
+          schema:
+            $ref: '#/definitions/data_in'
+definitions:
+  data_in:
+    properties:
+      data1:
+        type: string
+      data2:
+        type: string
+  shipping:
+    properties:
+      fedex:
+        type: string
+        $ref: '#/definitions/rates'
+      ups:
+        type: string
+        $ref: '#/definitions/rates'
+    required:
+      - ups
+      - fedex
+  rates:
+    properties:
+      next_day:
+        type: string
+        example: '20.00'
+      two_day:
+        type: string
+        example: '17.00'
+      ground:
+        type: string
+        example: '8.00'
+    required:
+      - two_day
+      - next_day
+      - ground
