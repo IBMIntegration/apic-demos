@@ -1,0 +1,229 @@
+swagger: '2.0'
+info:
+  x-ibm-name: api-country
+  title: api-country
+  version: 2.0.0
+schemes:
+  - https
+host: $(catalog.host)
+basePath: /countries2
+consumes:
+  - application/json
+produces:
+  - application/json
+securityDefinitions:
+  clientIdSecret:
+    type: apiKey
+    description: ''
+    in: header
+    name: X-IBM-Client-Secret
+  clientIdHeader:
+    type: apiKey
+    in: header
+    name: X-IBM-Client-Id
+security:
+  - clientIdHeader: []
+    clientIdSecret: []
+x-ibm-configuration:
+  testable: true
+  enforced: true
+  cors:
+    enabled: true
+  assembly:
+    execute:
+      - set-variable:
+          title: set-variable
+          actions:
+            - set: request.headers.myname
+              value: jamil
+          version: 2.0.0
+      - switch:
+          title: switch
+          case:
+            - condition: ((request.verb==='GET')&&(api.operation.path==='/list/xml'))
+              execute:
+                - invoke:
+                    target-url: $(api.properties.endpoint-server)
+                    title: Country API Invoke
+                - json-to-xml:
+                    title: json-to-xml
+                    root-element-name: json
+                    always-output-root-element: false
+                    version: 2.0.0
+            - condition: ((request.verb==='GET')&&(api.operation.path==='/list/short'))
+              execute:
+                - invoke:
+                    target-url: $(api.properties.endpoint-server)
+                    title: Country API Invoke
+                - gatewayscript:
+                    title: gatewayscript
+                    version: 2.0.0
+                    source: >-
+                      apim.setvariable('message.body',apim.getvariable('message.body').RestResponse.result);
+            - condition: ((request.verb==='GET')&&(api.operation.path==='/list/map'))
+              execute:
+                - invoke:
+                    target-url: $(api.properties.endpoint-server)
+                    title: Country API Invoke
+                    output: invoke_country_rsp
+                - invoke:
+                    target-url: $(api.properties.bank-endpoint-server)
+                    title: Branches API Invoke
+                    output: invoke_branches_rsp
+                - gatewayscript:
+                    title: gatewayscript
+                    version: 2.0.0
+                    source: >-
+                      var originalBranchResponse =
+                      apim.getvariable('invoke_branches_rsp.body');
+
+
+                      // Set New Object
+
+                      var newBranchObject =
+                      {"RestResponse":{"result":originalBranchResponse}};
+
+
+                      // Overwrite response for invoke_branch_rsp
+
+                      apim.setvariable('invoke_branches_rsp.body',
+                      newBranchObject );
+
+
+
+                      var originalCountryResponse =
+                      apim.getvariable('invoke_country_rsp.body');
+
+
+                      // Set New Object
+
+                      var newCountryObject =
+                      {"RestResponse":{"result":originalCountryResponse.RestResponse.result}};
+
+
+                      apim.setvariable('invoke_country_rsp.body',
+                      newCountryObject);
+                - map:
+                    title: map
+                    inputs:
+                      country_input:
+                        schema:
+                          $ref: '#/definitions/CountryResponse'
+                        variable: invoke_country_rsp.body
+                        content: application/json
+                      branches_input:
+                        schema:
+                          $ref: '#/definitions/BranchResponse'
+                        variable: invoke_branches_rsp.body
+                        content: application/json
+                    outputs:
+                      response:
+                        schema:
+                          $ref: '#/definitions/responsedata'
+                        variable: message.body
+                        content: application/json
+                    actions:
+                      - create: response.branches
+                        foreach: branches_input.RestResponse.result
+                        from: branches_input.RestResponse.result
+                        actions:
+                          - set: $item
+                            from: $item
+                      - create: response.country
+                        foreach: country_input.RestResponse.result
+                        from: country_input.RestResponse.result
+                        actions:
+                          - set: $item
+                            from: $item
+                    version: 2.0.0
+            - otherwise:
+                - invoke:
+                    target-url: $(api.properties.endpoint-server)
+                    title: Country API Invoke
+                - gatewayscript:
+                    title: gatewayscript
+                    version: 2.0.0
+                    source: >-
+                      apim.setvariable('message.headers.jamilheader','mymyeaderset');
+                - set-variable:
+                    title: outgoing header set
+                    actions:
+                      - value: siddiqui
+                        add: message.headers.asim
+                    version: 2.0.0
+          version: 2.0.0
+    catch: []
+  gateway: datapower-api-gateway
+  properties:
+    bank-endpoint-server:
+      value: 'https://apim-services.mybluemix.net/banka/v1/branches'
+      description: ''
+      encoded: false
+    endpoint-server:
+      value: 'http://services.groupkt.com/country/get/all'
+      description: ''
+      encoded: false
+  catalogs: {}
+  type: rest
+  phase: realized
+paths:
+  /list/map:
+    get:
+      responses:
+        '200':
+          description: 200 OK
+          schema:
+            $ref: '#/definitions/responsedata'
+  /list:
+    get:
+      responses:
+        '200':
+          description: 200 OK
+  /list/xml:
+    get:
+      responses:
+        '200':
+          description: 200 OK
+  /list/short:
+    get:
+      responses:
+        '200':
+          description: 200 OK
+definitions:
+  responsedata:
+    properties:
+      country:
+        type: array
+        items:
+          type: string
+      branches:
+        properties: {}
+        type: array
+        items:
+          type: string
+    additionalProperties: false
+  CountryResponse:
+    properties:
+      RestResponse:
+        $ref: '#/definitions/Country Data List'
+    additionalProperties: false
+  BranchResponse:
+    properties:
+      RestResponse:
+        $ref: '#/definitions/Branch Data List'
+    additionalProperties: false
+  Country Data List:
+    properties:
+      result:
+        type: array
+        items:
+          type: string
+    additionalProperties: false
+  Branch Data List:
+    properties:
+      result:
+        type: array
+        items:
+          type: string
+    additionalProperties: false
+tags: []

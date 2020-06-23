@@ -1,17 +1,20 @@
 swagger: '2.0'
 info:
-  x-ibm-name: FunWithShipping
-  title: funwithshipping
-  version: 1.0.0
+  title: shipping
+  x-ibm-name: shipping
+  version: 2.1.0
   license:
     name: MIT
 schemes:
   - https
 basePath: /shipping
-consumes:
-  - application/json
 produces:
   - application/json
+consumes:
+  - application/json
+security:
+  - Client ID: []
+    Client Secret: []
 securityDefinitions:
   Client ID:
     type: apiKey
@@ -23,64 +26,56 @@ securityDefinitions:
     name: X-IBM-Client-Secret
     type: apiKey
     description: Client Secret of your registered application.
-security:
-  - Client ID: []
-    Client Secret: []
 x-ibm-configuration:
   testable: true
   enforced: true
   cors:
     enabled: true
   gateway: datapower-api-gateway
-  catalogs:
-    apic-dev:
-      properties:
-        runtime-url: $(TARGET_URL)
-    Sandbox:
-      properties:
-        oauth_token_url: 'https://dpgwy.apic.demo.com/demo/sb/oauth2/token'
   assembly:
     execute:
-      - activity-log:
-          title: activity-log
-          content: activity
-          error-content: payload
-      - operation-switch:
-          title: operation-switch
+      - switch:
+          version: 2.0.0
+          title: switch
           case:
-            - operations:
-                - shipping.calc
+            - condition: ($operationPath() = '/calculate')
               execute:
                 - invoke:
+                    version: 2.0.0
                     title: invoke_fedex
                     timeout: 60
                     verb: GET
                     cache-response: protocol
                     cache-ttl: 900
                     target-url: >-
-                      https://apim-services.mybluemix.net/shipping/calculate?company=fedex&from_zip=90210&to_zip={zip}
+                      $(api.properties.shipping_svc_url)/shipping/calculate?company=fedex&from_zip=90210&to_zip={zip}
                     output: invoke_fedex_rsp
-                - invoke:
-                    title: invoke
-                    timeout: 60
-                    verb: GET
-                    cache-response: protocol
-                    cache-ttl: 900
-                    stop-on-error:
-                      - null
-                    version: 1.0.0
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: blacklist
+                      values: []
                 - invoke:
                     title: invoke_ups
+                    version: 2.0.0
                     timeout: 60
                     verb: GET
                     cache-response: protocol
                     cache-ttl: 900
                     description: ''
                     target-url: >-
-                      https://apim-services.mybluemix.net/shipping/calculate?company=ups&from_zip=90210&to_zip={zip}
+                      $(api.properties.shipping_svc_url)/shipping/calculate?company=ups&from_zip=90210&to_zip={zip}
                     output: invoke_ups_rsp
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: blacklist
+                      values: []
                 - map:
                     title: map_rsp
+                    version: 2.0.0
                     inputs:
                       fedex_rates:
                         schema:
@@ -168,85 +163,24 @@ x-ibm-configuration:
                       - set: output.ups.ground
                         from: ups_rates.rates.ground
                     description: Combine shipping rates from FedEx and UPS
-            - operations:
-                - example.assembly
-              execute:
-                - if:
-                    title: if
-                    condition: $(request.headers.content-type) == "application/json"
-                    execute:
-                      - validate:
-                          title: validate
-                          definition: '#/definitions/data_in'
-                      - proxy:
-                          title: proxy
-                          timeout: 60
-                          verb: keep
-                          cache-response: protocol
-                          cache-ttl: 900
-                          target-url: 'http://some.url/some/where'
-                - if:
-                    title: if
-                    condition: $(request.headers.content-type) == "application/xml"
-                    execute:
-                      - xml-to-json:
-                          title: xml-to-json
-                      - gatewayscript:
-                          title: gatewayscript
-                          source: console.log("hi there")
-                      - validate:
-                          title: validate
-                          definition: '#/definitions/data_in'
-                      - proxy:
-                          title: proxy
-                          timeout: 60
-                          verb: keep
-                          cache-response: protocol
-                          cache-ttl: 900
-                          target-url: 'http://some.url/some/where'
-                      - json-to-xml:
-                          title: json-to-xml
-                          root-element-name: json
-                          always-output-root-element: false
     catch:
       - errors:
           - ConnectionError
         execute: []
   properties:
     shipping_svc_url:
-      value: 'https://apim-services.mybluemix.net/shipping/calculate'
+      value: 'https://funwithshipping.mybluemix.net'
       description: Server location for the LoopBack application
       encoded: false
   type: rest
   phase: realized
-paths:
-  /calculate:
-    get:
-      responses:
-        '200':
-          description: 200 OK
-          schema:
-            $ref: '#/definitions/shipping'
-      summary: Calculate shipping costs to a destination zip code
-      operationId: shipping.calc
-      parameters:
-        - name: zip
-          type: string
-          required: true
-          in: query
-          description: Destination zip code.
-  /example/assembly:
-    post:
-      responses:
-        '200':
-          description: 200 OK
-      operationId: example.assembly
-      parameters:
-        - name: data
-          required: true
-          in: body
-          schema:
-            $ref: '#/definitions/data_in'
+  catalogs: {}
+  application-authentication:
+    certificate: false
+  activity-log:
+    enabled: true
+    error-content: header
+    success-content: activity
 definitions:
   data_in:
     properties:
@@ -280,3 +214,35 @@ definitions:
       - two_day
       - next_day
       - ground
+paths:
+  /calculate:
+    get:
+      responses:
+        '200':
+          description: 200 OK
+          schema:
+            $ref: '#/definitions/shipping'
+      summary: Calculate shipping costs to a destination zip code
+      operationId: shipping.calc
+      parameters:
+        - name: zip
+          type: string
+          required: true
+          in: query
+          description: Destination zip code.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+  /example/assembly:
+    post:
+      responses:
+        '200':
+          description: 200 OK
+      operationId: example.assembly
+      parameters:
+        - name: data
+          required: true
+          in: body
+          schema:
+            $ref: '#/definitions/data_in'
